@@ -1,0 +1,8 @@
+logdir/
+orchive/
+.vscode/
+.DS_Store
+params.yaml
+*.pyc
+timeline*.json
+*.png

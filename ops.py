@@ -1,62 +1,99 @@
-from __future__ import division
-
+import math
+import numpy as np 
 import tensorflow as tf
 
+from tensorflow.python.framework import ops
 
-def create_adam_optimizer(learning_rate, momentum):
-    return tf.train.AdamOptimizer(learning_rate=learning_rate)
+#image_summary = tf.summary.image
+#scalar_summary = tf.summary.scalar
+#histogram_summary = tf.summary.histogram
+#merge_summary = tf.summary.merge
+#SummaryWriter = tf.summary.FileWriter
 
+def concat(tensors, axis, *args, **kwargs):
+    return tf.concat(tensors, axis, *args, **kwargs)
 
-def create_sgd_optimizer(learning_rate, momentum):
-    return tf.train.MomentumOptimizer(learning_rate=learning_rate)
+class batch_norm(object):
+    def __init__(self, epsilon=1e-5, momentum = 0.9, name="batch_norm"):
+        with tf.variable_scope(name):
+            self.epsilon  = epsilon
+            self.momentum = momentum
+            self.name = name
 
+    def __call__(self, x, train=True):
+        return tf.contrib.layers.batch_norm(x,
+                            decay=self.momentum, 
+                            updates_collections=None,
+                            epsilon=self.epsilon,
+                            scale=True,
+                            is_training=train,
+                            scope=self.name)
 
-def create_rmsprop_optimizer(learning_rate, momentum):
-    return tf.train.RMSPropOptimizer(learning_rate=learning_rate, momentum=momentum)
+def conv_cond_concat(x, y):
+    """Concatenate conditioning vector on feature map axis."""
+    x_shapes = x.get_shape()
+    y_shapes = y.get_shape()
+    return concat([
+        x, y*tf.ones([x_shapes[0], x_shapes[1], x_shapes[2], y_shapes[3]])], 3)
 
-def create_nadam_optimizer(learning_rate, momentum):
-    return tf.contrib.opt.NadamOptimizer(learning_rate=learning_rate)
+def conv1d(input_, output_dim, 
+       k_w=5, d_w=2, stddev=0.02,
+       name="conv1d"):
+    with tf.variable_scope(name):
+        w = tf.get_variable('w', [k_w, input_.get_shape()[-1], output_dim],
+                initializer=tf.truncated_normal_initializer(stddev=stddev))
+        conv = tf.nn.conv1d(input_, w, stride = d_w, padding='SAME')
 
+        biases = tf.get_variable('biases', [output_dim], initializer=tf.constant_initializer(0.0))
+        conv = tf.reshape(tf.nn.bias_add(conv, biases), conv.get_shape())
 
-optimizer_factory = {'adam': create_adam_optimizer,
-                     'nadam': create_nadam_optimizer,
-                     'sgd': create_sgd_optimizer,
-                     'rmsprop': create_rmsprop_optimizer}
+        return conv
 
-def mu_law_encode(audio, quantization_channels):
-    '''Quantizes waveform amplitudes.'''
-    with tf.name_scope('encode'):
-        mu = tf.to_float(quantization_channels - 1)
-        # Perform mu-law companding transformation (ITU-T, 1988).
-        # Minimum operation is here to deal with rare large amplitudes caused
-        # by resampling.
-        safe_audio_abs = tf.minimum(tf.abs(audio), 1.0)
-        magnitude = tf.log1p(mu * safe_audio_abs) / tf.log1p(mu)
-        signal = tf.sign(audio) * magnitude
-        # Quantize signal to the specified number of levels.
-        return tf.to_int32((signal + 1) / 2 * mu + 0.5)
+# https://github.com/tensorflow/tensorflow/issues/8729
+def conv1d_transpose(x, W, output_shape, strides):
+    new_x = tf.expand_dims(x, 1)
+    new_W = tf.expand_dims(W, 0)
+    print("!new_x.shape: {}".format(new_x.shape))
+    print("!new_W.shape: {}".format(new_W.shape))
+    output_shape = (output_shape[0], 1 ,output_shape[1], output_shape[2])
+    print("!output_shape: {}".format(output_shape))
+    print("!strides: {}".format(strides))
+    #deconv = tf.nn.conv2d_transpose(new_x, new_W, output_shape=output_shape, strides=strides, data_format="NHWC")
+    deconv = tf.nn.conv2d_transpose(new_x, new_W, output_shape=output_shape, strides=strides, data_format="NHWC")
+    print("!deconv.shape0: {}".format(deconv.shape))
+    deconv = tf.squeeze(deconv, axis=1)
+    print("!deconv.shape: {}".format(deconv.shape))
+    return deconv
 
-def one_hot(batch_size, quantization_channels, nn):
-    '''One-hot encodes the waveform amplitudes.
+def deconv1d(input_, output_shape,
+        k_w=5, stddev=0.02,
+        name="deconv1d"):
+    d_w = 2
+    with tf.variable_scope(name):
+        w = tf.get_variable('w', [k_w, output_shape[-1], input_.shape[-1]],
+                initializer=tf.random_normal_initializer(stddev=stddev))
+#        output_shape = (output_shape[0], output_shape[1], output_shape[2])
+        deconv = conv1d_transpose(input_, w, output_shape=output_shape,
+                    strides=[1, d_w, d_w, 1])
 
-    This allows the definition of the network as a categorical distribution
-    over a finite set of possible amplitudes.
-    '''
-    with tf.name_scope('one_hot_encode'):
-        nn = tf.one_hot(
-            nn,
-            depth=quantization_channels,
-            dtype=tf.float32)
-        nn = tf.reshape(nn, [batch_size, -1, quantization_channels])
-    return nn
+        biases = tf.get_variable('biases', [output_shape[-1]], initializer=tf.constant_initializer(0.0))
+        #TODO: MW: is it this?: Perhaps this reshape is issue?
+        print("BEFORE deconv.shape: {}".format(deconv.shape))
+        #deconv = tf.reshape(tf.nn.bias_add(deconv, biases), deconv.get_shape())
+        deconv = tf.nn.bias_add(deconv, biases)
+        print("AFTER deconv.shape: {}".format(deconv.shape))
 
+        return deconv, w, biases
 
-def mu_law_decode(output, quantization_channels):
-    '''Recovers waveform from quantized values.'''
-    with tf.name_scope('decode'):
-        mu = quantization_channels - 1
-        # Map values back to [-1, 1].
-        signal = 2 * (tf.to_float(output) / mu) - 1
-        # Perform inverse of mu-law transformation.
-        magnitude = (1 / mu) * ((1 + mu)**abs(signal) - 1)
-        return tf.sign(signal) * magnitude
+def lrelu(x, leak=0.2, name="lrelu"):
+    return tf.maximum(x, leak*x)
+
+def linear(input_, output_size, scope=None, stddev=0.02, bias_start=0.0):
+#    shape = input_.get_shape().as_list()
+
+    with tf.variable_scope(scope or "Linear"):
+        matrix = tf.get_variable("Matrix", [input_.shape[1], output_size], tf.float32,
+                    tf.truncated_normal_initializer(stddev=stddev))
+        bias = tf.get_variable("bias", [output_size],
+        initializer=tf.constant_initializer(bias_start))
+        return tf.matmul(input_, matrix) + bias, matrix, bias

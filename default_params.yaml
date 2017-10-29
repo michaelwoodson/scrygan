@@ -1,7 +1,7 @@
 
 #######
 #
-# ScryNet Parameters
+# ScryGan Parameters
 #
 # Recommend copying default_params.yaml to params.yaml to make changes to the parameters.
 # These are the best hyperparamters so far when processing audio files from 2006 Orchive.
@@ -9,58 +9,26 @@
 #######
 
 # Number of training steps.
-num_steps: 1000
+num_steps: 100
 
-# How many audio files to process at onces.
+# How many audio files to process at once.
 batch_size: 128
 
-# How many consecutive mini batches to sample for each epoch
-num_mini_batches: 10000
-
-# How many lstm cells to process at once.
-mini_batch_size: 32
-
 # Learning rate for training.
-learning_rate: 0.0001
+g_learning_rate: 0.001
+d_learning_rate: 0.0001
 
 model:
-  # Number of layers in the LSTM network.
-  # For some reason setting to more than 1 isn't training well. Might be a bug
-  # in how states are propagated or maybe variables are getting reused between cells
-  # incorrectly.
-  # Setting to 0 will test a baseline with no LSTM, just the fully connected
-  # layers opterating on the window of audio samples.
   n_lstm_layers: 1
+  n_lstm_hidden: 32
+  gf_dim: 64
+  df_dim: 64
+  gfc_dim: 1024
+  dfc_dim: 1024
+  z_dim: 100
 
-  # Number of hidden cells in the LSTM.
-  n_lstm_hidden: 64
-
-  # Number of hidden nodes in the projection from the output layer.
-  fc_layers: 1
-
-  # Number of nodes in the hidden layers if fc_layers > 0
-  fc_hidden: 512
-
-  # Number of channels to use for logits/softmax while training.
-  quantization_channels: 128
-
-  # If value is less than one this is the keep probability for dropout.
-  dropout: 1
-
-  # Setting to True is too slow compared to BlockLSTMCell when using nvidia gpu.
-  layer_normalization: False
-
-  # How many samples to include in each
-  window_size: 16
-
-  # Whether to pass raw audio into the fully connected layer in addition to the LSTM.
-  fc_stack_raw_audio: True
-
-# Sample rate of the audio (this is a little crufty and hard coded in places).
-sample_rate: 16000
-
-# This is the mini-batch size
-scan_size: 16
+# How many samples to read per timestep.
+sample_size: 10240
 
 # Select the optimizer.
 optimizer: adam

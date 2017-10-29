@@ -29,36 +29,24 @@ class AudioReader(object):
 
     def __init__(self,
                  audio_dir,
-                 sample_rate,
                  batch_size,
-                 num_mini_batches,
-                 mini_batch_size,
-                 window_size):
+                 sample_size):
         self.audio_dir = audio_dir
-        self.sample_rate = sample_rate
         self.batch_size = batch_size
-        self.num_mini_batches = num_mini_batches
-        self.mini_batch_size = mini_batch_size
-        self.window_size = window_size
-        files = find_files(audio_dir)
-        if not files:
+        self.sample_size = sample_size
+        self.files = find_files(audio_dir)
+        print("files length: {}".format(len(self.files)))
+        print("batches: {}".format(batch_size))
+        if not self.files:
             raise ValueError("No audio files found in '{}'.".format(audio_dir))
 
-    def get_batches(self):
+    def get_batch(self):
         batch = []
-        for audio in self.load_generic_audio():
-            batch.append(audio)
-            if len(batch) == self.batch_size:
-                yield batch
-                batch = []
-
-    def load_generic_audio(self):
-        '''Generator that yields audio waveforms from the directory.'''
-        files = find_files(self.audio_dir)
-        print("files length: {}".format(len(files)))
-        randomized_files = randomize_files(files)
-        for filename in randomized_files:
-            size = (self.num_mini_batches * self.mini_batch_size + 1 + (self.window_size - 1))
+        for filename in randomize_files(self.files):
+            size = self.sample_size
             start = random.randint(0, 46000000 - size)
             audio, _ = sf.read(filename, start=start, stop = start + size)
-            yield audio
+            batch.append(audio)
+            if len(batch) == self.batch_size:
+                break
+        return batch

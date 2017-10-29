@@ -1,62 +1,84 @@
 import numpy as np
 import tensorflow as tf
 
-from ops import one_hot, mu_law_encode
+from ops import *
 from tensorflow.contrib import rnn
 
-class ScryNetModel(object):
-    '''Implements the ScryNet network for semantic detection in raw audio.'''
+def conv_out_size_same(size, stride):
+  return int(math.ceil(float(size) / float(stride)))
+
+class ScryGanModel(object):
+    '''Implements the ScryGan network for semantic detection in audio streams.'''
 
     def __init__(self,
                  batch_size,
-                 mini_batch_size,
+                 sample_size,
                  n_lstm_layers,
                  n_lstm_hidden,
-                 fc_hidden,
-                 quantization_channels,
-                 dropout,
-                 layer_normalization,
-                 window_size,
-                 fc_stack_raw_audio,
-                 fc_layers):
-        '''Initializes the ScryNet model. See default_params.yaml for each setting.'''
+                 gf_dim,
+                 df_dim,
+                 gfc_dim,
+                 dfc_dim,
+                 z_dim):
+        '''Initializes the ScryGan model. See default_params.yaml for each setting.'''
         self.batch_size = batch_size
-        self.mini_batch_size = mini_batch_size
+        self.sample_size = sample_size
         self.n_lstm_layers = n_lstm_layers
-        self.quantization_channels = quantization_channels
         self.n_lstm_hidden = n_lstm_hidden
-        self.fc_hidden = fc_hidden
-        self.dropout = dropout
-        self.layer_normalization = layer_normalization
-        self.window_size = window_size
-        self.fc_stack_raw_audio = fc_stack_raw_audio
-        self.fc_layers = fc_layers
+        self.gf_dim = gf_dim
+        self.df_dim = df_dim
+        self.gfc_dim = gfc_dim
+        self.dfc_dim = dfc_dim
+        self.c_dim = 1
+        self.z_dim = z_dim
+        print("creating network [Batch Size: {:d}]".format(self.batch_size))
 
-    def _create_network(self, inputs, is_training):
-        print("creating network [Batch Size: {:d}] [Mini Batch Size: {:d}] [LSTM Layers: {:d}] [LSTM Hidden: {:d}]".format(
-            self.batch_size, self.mini_batch_size, self.n_lstm_layers, self.n_lstm_hidden))
-        with tf.variable_scope('main_rnn'):
-            def lstm_cell():
-                if self.layer_normalization:
-                    cell = tf.contrib.rnn.LayerNormBasicLSTMCell(self.n_lstm_hidden, forget_bias=1.0)
-                else:
-                    cell = tf.contrib.rnn.LSTMBlockCell(self.n_lstm_hidden, forget_bias=1.0)
-                if is_training and self.dropout < 1:
-                    return tf.contrib.rnn.DropoutWrapper(cell, state_keep_prob=self.dropout)
-                else:
-                    return cell
-            self.cells = [lstm_cell() for _ in range(self.n_lstm_layers)]
-            self.placeholder_cs = [tf.placeholder(tf.float32, shape=(self.batch_size, self.n_lstm_hidden)) for _ in range(self.n_lstm_layers)]
-            self.placeholder_hs = [tf.placeholder(tf.float32, shape=(self.batch_size, self.n_lstm_hidden)) for _ in range(self.n_lstm_layers)]
-            if self.n_lstm_layers == 0:
-                return inputs, inputs
-            elif self.n_lstm_layers == 1:
-                state = rnn.LSTMStateTuple(self.placeholder_cs[0], self.placeholder_hs[0])
-                nn = self.cells[0]
-            else:
-                state = tuple([rnn.LSTMStateTuple(c,h) for c, h in zip(self.placeholder_cs, self.placeholder_hs)])
-                nn = tf.contrib.rnn.MultiRNNCell(self.cells)
-            return tf.nn.dynamic_rnn(nn, inputs, dtype=tf.float32, initial_state=state)
+        self.d_bn1 = batch_norm(name='d_bn1')
+        self.d_bn2 = batch_norm(name='d_bn2')
+        self.d_bn3 = batch_norm(name='d_bn3')
+
+        self.g_bn0 = batch_norm(name='g_bn0')
+        self.g_bn1 = batch_norm(name='g_bn1')
+        self.g_bn2 = batch_norm(name='g_bn2')
+        self.g_bn3 = batch_norm(name='g_bn3')
+
+        self.inputs = tf.placeholder(tf.float32, [self.batch_size, self.sample_size, 1], name='real_audio')
+
+        self.z = tf.placeholder(tf.float32, [None, self.z_dim], name='z')
+        #self.z = tf.placeholder(tf.float32, [self.batch_size, self.z_dim], name='z')
+        self.z_sum = tf.summary.histogram("z", self.z)
+        self.y = None
+
+        self.G = self.generator(self.z, self.y)
+        print("inputs shape: {}".format(self.inputs.shape))
+        print("generator shape: {}".format(self.G.shape))
+        self.D, self.D_logits = self.discriminator(self.inputs, self.y, reuse=False)
+        self.D_, self.D_logits_ = self.discriminator(self.G, self.y, reuse=True)
+
+        self.d_sum = tf.summary.histogram("d", self.D)
+        self.d__sum = tf.summary.histogram("d_", self.D_)
+        #self.G_sum = tf.summary.image("G", self.G)
+        self.d_loss_real = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=self.D_logits, labels=tf.ones_like(self.D)))
+        self.d_loss_fake = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=self.D_logits_, labels=tf.zeros_like(self.D_)))
+        g_x = tf.nn.sigmoid_cross_entropy_with_logits(logits=self.D_logits_, labels=tf.ones_like(self.D_))
+        print("D_logits_: {}".format(self.D_logits_.shape))
+        print("D_: {}".format(self.D_.shape))
+        self.g_loss = tf.reduce_mean(g_x)
+
+        self.d_loss_real_sum = tf.summary.scalar("d_loss_real", self.d_loss_real)
+        self.d_loss_fake_sum = tf.summary.scalar("d_loss_fake", self.d_loss_fake)
+                                
+        self.d_loss = self.d_loss_real + self.d_loss_fake
+
+        self.g_loss_sum = tf.summary.scalar("g_loss", self.g_loss)
+        self.d_loss_sum = tf.summary.scalar("d_loss", self.d_loss)
+
+        t_vars = tf.trainable_variables()
+        for var in t_vars:
+            print('var: {}\t{}'.format(var.name, var.shape))
+
+        self.d_vars = [var for var in t_vars if 'd_' in var.name]
+        self.g_vars = [var for var in t_vars if 'g_' in var.name]
 
     def zero_state(self):
         def zero_tuple():
@@ -76,47 +98,67 @@ class ScryNetModel(object):
             for s, p in zip(states, self.placeholder_hs):
                 feed_dict[p] = s[1]
 
-    def loss(self, name='scrynet_training'):
-        with tf.variable_scope(name):
-            with tf.name_scope('prepare_input'):
-                raw_audio_input = tf.placeholder(tf.float32, (self.batch_size, self.mini_batch_size + 1, self.window_size))
-                input_slice = tf.slice(raw_audio_input, [0, 0, 0], [-1, self.mini_batch_size, -1])
-            outputs, state_out = self._create_network(input_slice, True)
-            with tf.variable_scope('projection'):
-                if self.fc_hidden == -1:
-                    nn = tf.slice(outputs, [0, 0, self.n_lstm_hidden-self.quantization_channels], [-1, -1, -1])
-                else:
-                    fc_input_size = self.n_lstm_hidden if self.n_lstm_layers > 0 else self.window_size
-                    if self.fc_stack_raw_audio:
-                        nn = tf.concat([input_slice, outputs], axis=2)
-                        fc_input_size = fc_input_size + self.window_size
-                    else:
-                        nn = outputs
-                    nn = tf.reshape(nn, [self.batch_size * self.mini_batch_size, fc_input_size])
-                    if self.fc_hidden == 0:
-                        nn = tf.contrib.layers.fully_connected(nn, self.quantization_channels,
-                            weights_initializer=tf.truncated_normal_initializer(stddev=0.1))
-                    else:
-                        for i in range(self.fc_layers):
-                            nn = tf.contrib.layers.fully_connected(nn, self.fc_hidden,
-                                weights_initializer=tf.truncated_normal_initializer(stddev=0.1))
-                        nn = tf.contrib.layers.fully_connected(nn, self.quantization_channels,
-                            weights_initializer=tf.truncated_normal_initializer(stddev=0.1))
-                nn = tf.reshape(nn, [self.batch_size, self.mini_batch_size, self.quantization_channels])
-            with tf.variable_scope('post_processing'):
-                targets = tf.slice(raw_audio_input, [0, 1, self.window_size - 1], [-1, -1, -1])
-                targets = mu_law_encode(targets, self.quantization_channels)
-                targets = tf.reshape(targets, [self.batch_size, self.mini_batch_size])
-                print("targets: {}".format(targets))
-            with tf.variable_scope('loss'):
-                losses = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=nn, labels=targets)
-                nn = tf.reduce_mean(losses)
-                tf.summary.scalar('loss', nn)
-                return nn, raw_audio_input, outputs, state_out
+    def discriminator(self, audio, y=None, reuse=False):
+        with tf.variable_scope("discriminator") as scope:
+            if reuse:
+                scope.reuse_variables()
 
-    def scan(self, name='scrynet'):
-        with tf.variable_scope(name):
-            raw_audio_input = tf.placeholder(tf.float32, (self.batch_size, self.mini_batch_size, self.window_size), name="raw_audio")
-            outputs, state_out = self._create_network(tf.slice(raw_audio_input, [0, 0, 0], [-1, self.mini_batch_size, -1]), False)
-            return raw_audio_input, state_out, outputs
+            print("MAKING DISCRIMINATOR")
+            print("audio.shape: {}".format(audio.shape))
+            nn = lrelu(conv1d(audio, self.df_dim, name='d_h0_conv'))
+            print("nn1: {}".format(nn.shape))
+            nn = lrelu(self.d_bn1(conv1d(nn, self.df_dim*2, name='d_h1_conv')))
+            print("nn2: {}".format(nn.shape))
+            nn = lrelu(self.d_bn2(conv1d(nn, self.df_dim*4, name='d_h2_conv')))
+            print("nn3: {}".format(nn.shape))
+            nn = lrelu(self.d_bn3(conv1d(nn, self.df_dim*8, name='d_h3_conv')))
+            print("nn4: {}".format(nn.shape))
+            nn = tf.reshape(nn, [self.batch_size, -1])
+            print("nn5: {}".format(nn.shape))
+            nn, _, _ = linear(nn, output_size=1, scope='d_h4_lin')
+            print("nn6: {}".format(nn.shape))
+            print("")
 
+            return tf.nn.sigmoid(nn), nn
+
+    def generator(self, z, y=None):
+        with tf.variable_scope("generator") as scope:
+            print("MAKING GENERATOR")
+            print("z.shape: {}".format(z.shape))
+            s_w = self.sample_size
+            s_w2 = conv_out_size_same(s_w, 2)
+            s_w4 = conv_out_size_same(s_w2, 2)
+            s_w8 = conv_out_size_same(s_w4, 2)
+            s_w16 = conv_out_size_same(s_w8, 2)
+            print("ss: {} {} {} {} {}".format(s_w, s_w2, s_w4, s_w8, s_w16))
+
+            # project `z` and reshape
+            self.z_, self.h0_w, self.h0_b = linear(z, output_size=self.gf_dim * s_w16 * 8, scope='g_h0_lin')
+
+            self.h0 = tf.reshape(
+                self.z_, [-1, s_w16, self.gf_dim * 8])
+            #    self.z_, [self.batch_size, s_w16, self.gf_dim * 8])
+            nn = tf.nn.relu(self.g_bn0(self.h0))
+            print("nn1: {}".format(nn.shape))
+
+            self.h1, self.h1_w, self.h1_b = deconv1d(
+                nn, [self.batch_size, s_w8, self.gf_dim*4], name='g_h1')
+            nn = tf.nn.relu(self.g_bn1(self.h1))
+            print("nn2: {}".format(nn.shape))
+
+            nn, self.h2_w, self.h2_b = deconv1d(
+                nn, [self.batch_size, s_w4, self.gf_dim*2], name='g_h2')
+            nn = tf.nn.relu(self.g_bn2(nn))
+            print("nn3: {}".format(nn.shape))
+
+            nn, self.h3_w, self.h3_b = deconv1d(
+                nn, [self.batch_size, s_w2, self.gf_dim*1], name='g_h3')
+            nn = tf.nn.relu(self.g_bn3(nn))
+            print("nn4: {}".format(nn.shape))
+
+            nn, self.h4_w, self.h4_b = deconv1d(
+                nn, [self.batch_size, s_w, self.c_dim], name='g_h4')
+            print("nn5: {}".format(nn.shape))
+            print()
+
+            return tf.nn.tanh(nn)
