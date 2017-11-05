@@ -255,6 +255,9 @@ def main():
                     .astype(np.float32)
             raw_audio_batch = np.array(spectrograms)
             raw_audio_batch = np.expand_dims(raw_audio_batch, axis=-1)
+            if step == 0:
+                save_images(raw_audio_batch, image_manifold_size(raw_audio_batch.shape[0]),
+                    os.path.join(logdir, 'sample.png'.format(step)))
 
             # Update D network
             _, summary_str = sess.run([d_optim, model.d_sum],
