@@ -9,13 +9,13 @@
 #######
 
 # Number of training steps.
-num_steps: 1000
+num_steps: 10000
 
 # How many audio files to process at once.
-batch_size: 128
+batch_size: 144
 
 # Learning rate for training.
-g_learning_rate: 0.001
+g_learning_rate: 0.0002
 d_learning_rate: 0.0001
 
 model:
