@@ -19,13 +19,15 @@ import soundfile as sf
 import matplotlib.pyplot as plt
 
 from scipy import signal
+from scipy import misc
 from tensorflow.python.client import timeline
 
 
 from model import ScryGanModel
 from audio_reader import AudioReader
+from ops import *
 
-random.seed(0)
+random.seed(3)
 
 DATA_DIRECTORY = 'orchive'
 LOGDIR_ROOT = 'logdir'
@@ -215,6 +217,15 @@ def main():
         for step in range(saved_global_step + 1, num_steps):
             batch = reader.get_batch()
             start_time = time.time()
+            spectrograms = []
+            for idx, audio in enumerate(batch):
+                f, t, Sxx = signal.spectrogram(audio, 16000, nperseg=256, nfft=256)
+                Sxx = misc.imresize(Sxx, (64, 64))
+                spectrograms.append(Sxx)
+                #dBS = 10 * np.log10(Sxx)  # convert to dB
+                #plt.pcolormesh(t, f, dBS)
+
+
             #last_print = time.time()
             #for idx, audio in enumerate(batch):
                 #state = model.zero_state()
@@ -242,7 +253,7 @@ def main():
 
             batch_z = np.random.uniform(-1, 1, [model.batch_size, model.z_dim]) \
                     .astype(np.float32)
-            raw_audio_batch = np.array(batch)
+            raw_audio_batch = np.array(spectrograms)
             raw_audio_batch = np.expand_dims(raw_audio_batch, axis=-1)
 
             # Update D network
@@ -251,16 +262,30 @@ def main():
             writer.add_summary(summary_str, step)
 
             # Update G network
-            #_, summary_str = sess.run([g_optim, model.g_sum],
-            _ = sess.run([g_optim],
+            _, summary_str = sess.run([g_optim, model.g_sum],
+            #_ = sess.run([g_optim],
             feed_dict={ model.z: batch_z })
             writer.add_summary(summary_str, step)
 
             errD_fake = sess.run(model.d_loss_fake, feed_dict={model.z: batch_z})
             errD_real = sess.run(model.d_loss_real, feed_dict={ model.inputs: raw_audio_batch })
             errG = sess.run(model.g_loss, feed_dict={model.z: batch_z})
+            if np.mod(step, 100) == 1:
+                #try:
+                samples, d_loss, g_loss = sess.run(
+                    [model.sampler, model.d_loss, model.g_loss],
+                        feed_dict={
+                            model.z: sample_z,
+                            model.inputs: raw_audio_batch,
+                        },
+                )
+                save_images(samples, image_manifold_size(samples.shape[0]),
+                    os.path.join(logdir, 'train_{:04d}.png'.format(step)))
+                print("[Sample] d_loss: %.8f, g_loss: %.8f" % (d_loss, g_loss)) 
+                #except Exception as e:
+                #    print("Problem saving image: [{}]".format(e))
 
-            print("Epoch: [%2d] time: %4.4f, d_loss: %.8f, g_loss: %.8f" \
+            print("Epoch: [%03d] time: %4.4f, d_loss: %.8f, g_loss: %.8f" \
                 % (step, time.time() - start_time, errD_fake+errD_real, errG))
             #duration = time.time() - start_time
             #print('step {:d}/{:d}- loss = {:.7f}, ({:.3f} sec/step)'.format(step, num_steps, loss_value, duration))
@@ -279,20 +304,6 @@ def main():
 
 def train(config):
     pass
-        #if np.mod(counter, 100) == 1:
-        #    try:
-        #        samples, d_loss, g_loss = model.sess.run(
-        #        [model.sampler, model.d_loss, model.g_loss],
-        #        feed_dict={
-        #            model.z: sample_z,
-        #            model.inputs: sample_inputs,
-        #        },
-        #        )
-        #        save_images(samples, image_manifold_size(samples.shape[0]),
-        #            './{}/train_{:02d}_{:04d}.png'.format(config.sample_dir, epoch, idx))
-        #        print("[Sample] d_loss: %.8f, g_loss: %.8f" % (d_loss, g_loss)) 
-        #    except:
-        #        print("one pic error!...")
 
         #if np.mod(counter, 500) == 2:
         #    model.save(config.checkpoint_dir, counter)

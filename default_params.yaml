@@ -28,7 +28,7 @@ model:
   z_dim: 100
 
 # How many samples to read per timestep.
-sample_size: 10240
+sample_size: 16000
 
 # Select the optimizer.
 optimizer: adam
