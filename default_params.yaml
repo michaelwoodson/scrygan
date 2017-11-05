@@ -9,7 +9,7 @@
 #######
 
 # Number of training steps.
-num_steps: 100
+num_steps: 1000
 
 # How many audio files to process at once.
 batch_size: 128
