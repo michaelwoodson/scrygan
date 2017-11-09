@@ -9,7 +9,7 @@
 #######
 
 # Number of training steps.
-num_steps: 10000
+num_steps: 100000
 
 # How many audio files to process at once.
 batch_size: 144
@@ -23,12 +23,10 @@ model:
   n_lstm_hidden: 32
   gf_dim: 64
   df_dim: 64
-  gfc_dim: 1024
-  dfc_dim: 1024
   z_dim: 100
 
 # How many samples to read per timestep.
-sample_size: 16000
+sample_size: 48000
 
 # Select the optimizer.
 optimizer: adam

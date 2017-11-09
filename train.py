@@ -180,11 +180,10 @@ def main():
     #g_optim = tf.train.AdamOptimizer(scrygan_params["g_learning_rate"], beta1=config.beta1).minimize(model.g_loss, var_list=model.g_vars)
     print('discriminator shape: {}'.format(model.D.shape))
     print('d_loss shape: {}'.format(model.d_loss.shape))
-    d_optim = tf.train.AdamOptimizer(scrygan_params["d_learning_rate"]).minimize(model.d_loss, var_list=model.d_vars)
+    d_optim = tf.train.AdamOptimizer(scrygan_params["d_learning_rate"], beta1=0.5).minimize(model.d_loss, var_list=model.d_vars)
     print('generator shape: {}'.format(model.G.shape))
     print('g_loss shape: {}'.format(model.g_loss.shape))
-    g_optim = tf.train.AdamOptimizer(scrygan_params["g_learning_rate"]).minimize(model.g_loss, var_list=model.g_vars)
-    sample_z = np.random.uniform(-1, 1, size=(model.batch_size, model.z_dim))
+    g_optim = tf.train.AdamOptimizer(scrygan_params["g_learning_rate"], beta1=0.5).minimize(model.g_loss, var_list=model.g_vars)
     init = tf.global_variables_initializer()
     sess.run(init)
     model.g_sum = tf.summary.merge([model.z_sum, model.d__sum, model.d_loss_fake_sum, model.g_loss_sum])
@@ -251,6 +250,7 @@ def main():
                 #    duration = time.time() - start_time
                 #    print('loss = {:.7f}'.format(loss_value)
 
+            sample_z = np.random.uniform(-1, 1, size=(model.batch_size, model.z_dim))
             batch_z = np.random.uniform(-1, 1, [model.batch_size, model.z_dim]) \
                     .astype(np.float32)
             raw_audio_batch = np.array(spectrograms)

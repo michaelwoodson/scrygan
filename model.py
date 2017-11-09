@@ -17,8 +17,6 @@ class ScryGanModel(object):
                  n_lstm_hidden,
                  gf_dim,
                  df_dim,
-                 gfc_dim,
-                 dfc_dim,
                  z_dim):
         '''Initializes the ScryGan model. See default_params.yaml for each setting.'''
         self.batch_size = batch_size
@@ -27,8 +25,6 @@ class ScryGanModel(object):
         self.n_lstm_hidden = n_lstm_hidden
         self.gf_dim = gf_dim
         self.df_dim = df_dim
-        self.gfc_dim = gfc_dim
-        self.dfc_dim = dfc_dim
         self.c_dim = 1
         self.z_dim = z_dim
         print("creating network [Batch Size: {:d}]".format(self.batch_size))
@@ -161,7 +157,8 @@ class ScryGanModel(object):
             print("nn5: {}".format(nn.shape))
             print()
 
-            return tf.nn.tanh(nn)
+            #return tf.nn.tanh(nn)
+            return tf.nn.relu(nn)
 
     def sampler(self, z, y=None):
         with tf.variable_scope("generator") as scope:
@@ -174,18 +171,20 @@ class ScryGanModel(object):
 
             # project `z` and reshape
             nn, _, _ = linear(z, self.gf_dim*8*s_w16*s_w16, 'g_h0_lin')
-            h0 = tf.reshape(nn, [-1, s_w16, s_w16, self.gf_dim * 8])
-            h0 = tf.nn.relu(self.g_bn0(h0, train=False))
+            nn = tf.reshape(nn, [-1, s_w16, s_w16, self.gf_dim * 8])
+            nn = tf.nn.relu(self.g_bn0(nn, train=False))
 
-            h1, _, _ = deconv2d(h0, [self.batch_size, s_w8, s_w8, self.gf_dim*4], name='g_h1')
-            h1 = tf.nn.relu(self.g_bn1(h1, train=False))
+            nn, _, _ = deconv2d(nn, [self.batch_size, s_w8, s_w8, self.gf_dim*4], name='g_h1')
+            nn = tf.nn.relu(self.g_bn1(nn, train=False))
 
-            h2, _, _ = deconv2d(h1, [self.batch_size, s_w4, s_w4, self.gf_dim*2], name='g_h2')
-            h2 = tf.nn.relu(self.g_bn2(h2, train=False))
+            nn, _, _ = deconv2d(nn, [self.batch_size, s_w4, s_w4, self.gf_dim*2], name='g_h2')
+            nn = tf.nn.relu(self.g_bn2(nn, train=False))
 
-            h3, _, _ = deconv2d(h2, [self.batch_size, s_w2, s_w2, self.gf_dim*1], name='g_h3')
-            h3 = tf.nn.relu(self.g_bn3(h3, train=False))
+            nn, _, _ = deconv2d(nn, [self.batch_size, s_w2, s_w2, self.gf_dim*1], name='g_h3')
+            nn = tf.nn.relu(self.g_bn3(nn, train=False))
 
-            h4, _, _ = deconv2d(h3, [self.batch_size, s_w, s_w, self.c_dim], name='g_h4')
+            nn, _, _ = deconv2d(nn, [self.batch_size, s_w, s_w, self.c_dim], name='g_h4')
 
-            return tf.nn.tanh(h4)
+            #return tf.nn.tanh(h4)
+            #return tf.nn.relu(tf.nn.tanh(nn))
+            return tf.nn.relu(nn)
