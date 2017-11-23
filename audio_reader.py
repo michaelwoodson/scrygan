@@ -30,10 +30,12 @@ class AudioReader(object):
     def __init__(self,
                  audio_dir,
                  batch_size,
-                 sample_size):
+                 sample_size,
+                 num_t):
         self.audio_dir = audio_dir
         self.batch_size = batch_size
         self.sample_size = sample_size
+        self.num_t = num_t
         self.files = find_files(audio_dir)
         print("files length: {}".format(len(self.files)))
         print("batches: {}".format(batch_size))
@@ -43,7 +45,7 @@ class AudioReader(object):
     def get_batch(self):
         batch = []
         for filename in randomize_files(self.files):
-            size = self.sample_size
+            size = self.sample_size * self.num_t
             start = random.randint(0, 46000000 - size)
             audio, _ = sf.read(filename, start=start, stop = start + size)
             batch.append(audio)

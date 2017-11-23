@@ -121,8 +121,7 @@ def linear(input_, output_size, scope=None, stddev=0.002, bias_start=0.0):
     with tf.variable_scope(scope or "Linear"):
         matrix = tf.get_variable("Matrix", [input_.shape[1], output_size], tf.float32,
                     tf.truncated_normal_initializer(stddev=stddev))
-        bias = tf.get_variable("bias", [output_size],
-        initializer=tf.constant_initializer(bias_start))
+        bias = tf.get_variable("bias", [output_size], tf.float32, initializer=tf.constant_initializer(bias_start))
         return tf.matmul(input_, matrix) + bias, matrix, bias
 
 

@@ -28,11 +28,11 @@ model:
 # How many samples to read per timestep.
 sample_size: 48000
 
+# Number of steps to run through the RNN.
+num_t: 16
+
 # Select the optimizer.
 optimizer: adam
-
-# Specify the momentum to be used by sgd or rmsprop optimizer. Ignored by the adam optimizer.
-momentum: 0.9
 
 # Maximum amount of checkpoints that will be kept alive.
 max_to_keep: 5

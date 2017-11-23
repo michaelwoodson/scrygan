@@ -100,7 +100,6 @@ def validate_directories(args):
     """Validate and arrange directory related arguments."""
 
     # Validation
-
     if args.logdir and args.restore_from:
         raise ValueError(
             "--logdir and --restore_from cannot be specified at the same "
@@ -162,22 +161,21 @@ def main():
     batch_size = scrygan_params["batch_size"]
     sample_rate = 16000
     sample_size = scrygan_params["sample_size"]
+    num_t = scrygan_params["num_t"]
     print("sample_size: {}".format(sample_size))
     num_steps = scrygan_params["num_steps"]
     with tf.name_scope('create_inputs'):
         reader = AudioReader(
             args.data_dir,
             batch_size=batch_size,
-            sample_size=sample_size)
+            sample_size=sample_size,
+            num_t=num_t)
     model = ScryGanModel(
         batch_size=batch_size,
         sample_size=sample_size,
         **scrygan_params["model"])
 
-    #sess = tf.Session(config=tf.ConfigProto(log_device_placement=False))
     sess = tf.Session(config=tf.ConfigProto(log_device_placement=False))
-    #d_optim = tf.train.AdamOptimizer(scrygan_params["d_learning_rate"], beta1=config.beta1).minimize(model.d_loss, var_list=model.d_vars)
-    #g_optim = tf.train.AdamOptimizer(scrygan_params["g_learning_rate"], beta1=config.beta1).minimize(model.g_loss, var_list=model.g_vars)
     print('discriminator shape: {}'.format(model.D.shape))
     print('d_loss shape: {}'.format(model.d_loss.shape))
     d_optim = tf.train.AdamOptimizer(scrygan_params["d_learning_rate"], beta1=0.5).minimize(model.d_loss, var_list=model.d_vars)
@@ -189,8 +187,7 @@ def main():
     model.g_sum = tf.summary.merge([model.z_sum, model.d__sum, model.d_loss_fake_sum, model.g_loss_sum])
     model.d_sum = tf.summary.merge([model.z_sum, model.d_sum, model.d_loss_real_sum, model.d_loss_sum])
     writer = tf.summary.FileWriter(logdir, sess.graph)
-    #writer.add_graph(tf.get_default_graph())
-    #saver = tf.train.Saver(var_list=tf.trainable_variables())
+    saver = tf.train.Saver(var_list=tf.trainable_variables())
     text_file = open(os.path.join(logdir, "config.yaml"), "w")
     text_file.write(yaml.dump(scrygan_params))
     text_file.close()
@@ -217,84 +214,71 @@ def main():
             batch = reader.get_batch()
             start_time = time.time()
             spectrograms = []
-            for idx, audio in enumerate(batch):
-                f, t, Sxx = signal.spectrogram(audio, 16000, nperseg=256, nfft=256)
-                Sxx = misc.imresize(Sxx, (64, 64))
-                spectrograms.append(Sxx)
-                #dBS = 10 * np.log10(Sxx)  # convert to dB
-                #plt.pcolormesh(t, f, dBS)
+            for idx, full_audio in enumerate(batch):
+                audio_sequence = []
+                for audio in np.split(full_audio, num_t):
+                    f, t, Sxx = signal.spectrogram(audio, 16000, nperseg=256, nfft=256)
+                    Sxx = misc.imresize(Sxx, (64, 64))
+                    audio_sequence.append(Sxx)
+                spectrograms.append(audio_sequence)
+            spectrograms = np.array(spectrograms)
+            g_state = model.zero_state()
+            d_state = model.zero_state()
+            d_state_ = model.zero_state()
+            #for t in range(num_t):
+            for t in range(4):
+                batch_z = np.random.uniform(-1, 1, [model.batch_size, model.z_dim]).astype(np.float32)
+                #print("spectograms.shape: {}".format(spectrograms.shape))
+                t_batch = spectrograms[:,t]
+                #print("t_batch.shape: {}".format(t_batch.shape))
+                raw_audio_batch = np.array(t_batch)
+                raw_audio_batch = np.expand_dims(raw_audio_batch, axis=-1)
 
+                # Update network
+                feed_dict = {model.inputs: raw_audio_batch, model.z: batch_z}
+                model.load_placeholders(model.D, feed_dict, d_state)
+                model.load_placeholders(model.D_, feed_dict, d_state_)
+                model.load_placeholders(model.G, feed_dict, g_state)
+                _, _, errD_fake, errD_real, errG, d_summary_str, g_summary_str, d_state, d_state_, g_state = sess.run([
+                    d_optim,
+                    g_optim,
+                    model.d_loss_fake,
+                    model.d_loss_real,
+                    model.g_loss,
+                    model.d_sum,
+                    model.g_sum,
+                    model.state_out[model.D],
+                    model.state_out[model.D_],
+                    model.state_out[model.G]
+                ], feed_dict=feed_dict)
+                writer.add_summary(d_summary_str, step)
+                writer.add_summary(g_summary_str, step)
 
-            #last_print = time.time()
-            #for idx, audio in enumerate(batch):
-                #state = model.zero_state()
-                #feed_dict = {raw_audio_input: audio_feed}
-                #model.load_placeholders(feed_dict, state)
-                #if mini_batch_counter == -1:
-                #    options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
-                #    run_metadata = tf.RunMetadata()
-                #    summary, loss_value, _, state = sess.run([summaries, loss, optim, state_out],
-                #        feed_dict=feed_dict,
-                #        options=options,
-                #        run_metadata=run_metadata)
-                #    profiler.add_step(0, run_metadata)
-                #    opts = (tf.profiler.ProfileOptionBuilder(
-                #            tf.profiler.ProfileOptionBuilder.time_and_memory())
-                #            .with_step(0)
-                #            .with_timeline_output('timeline.json').build())
-                #    profiler.profile_graph(options=opts)
-                #else:
-                #    summary, loss_value, _, state = sess.run([summaries, loss, optim, state_out], feed_dict=feed_dict)
-                #if time.time() - last_print > 10:
-                #    last_print = time.time()
-                #    duration = time.time() - start_time
-                #    print('loss = {:.7f}'.format(loss_value)
-
-            sample_z = np.random.uniform(-1, 1, size=(model.batch_size, model.z_dim))
-            batch_z = np.random.uniform(-1, 1, [model.batch_size, model.z_dim]) \
-                    .astype(np.float32)
-            raw_audio_batch = np.array(spectrograms)
-            raw_audio_batch = np.expand_dims(raw_audio_batch, axis=-1)
-            if step == 0:
-                save_images(raw_audio_batch, image_manifold_size(raw_audio_batch.shape[0]),
-                    os.path.join(logdir, 'sample.png'.format(step)))
-
-            # Update D network
-            _, summary_str = sess.run([d_optim, model.d_sum],
-            feed_dict={ model.inputs: raw_audio_batch, model.z: batch_z })
-            writer.add_summary(summary_str, step)
-
-            # Update G network
-            _, summary_str = sess.run([g_optim, model.g_sum],
-            #_ = sess.run([g_optim],
-            feed_dict={ model.z: batch_z })
-            writer.add_summary(summary_str, step)
-
-            errD_fake = sess.run(model.d_loss_fake, feed_dict={model.z: batch_z})
-            errD_real = sess.run(model.d_loss_real, feed_dict={ model.inputs: raw_audio_batch })
-            errG = sess.run(model.g_loss, feed_dict={model.z: batch_z})
-            if np.mod(step, 100) == 1:
-                #try:
-                samples, d_loss, g_loss = sess.run(
-                    [model.sampler, model.d_loss, model.g_loss],
-                        feed_dict={
-                            model.z: sample_z,
-                            model.inputs: raw_audio_batch,
-                        },
-                )
-                save_images(samples, image_manifold_size(samples.shape[0]),
+            if True:
+            #if np.mod(step, 200) == 1:
+            #    save(saver, sess, logdir, step)
+            #    last_saved_step = step
+                sample_images = []
+                for idx in range(24):
+                    for t in range(6):
+                        sample_images.append(spectrograms[idx,t,:,:])
+                save_images(np.array(sample_images).reshape([144,64,64,1]), (12,12),
+                    os.path.join(logdir, 'sample_{:04d}.png'.format(step)))
+                sample_z = np.random.uniform(-1, 1, size=(model.batch_size, model.z_dim))
+                print("training sample saved")
+                sample_images = np.zeros((24,6,64,64,1))
+                sampler_state = model.zero_state()
+                for t in range(6):
+                    feed_dict = {model.z: sample_z}
+                    model.load_placeholders(model.sampler, feed_dict, sampler_state)
+                    samples, sampler_state = sess.run([model.sampler, model.state_out[model.sampler]], feed_dict=feed_dict)
+                    print("samples.shape {}".format(samples.shape))
+                    for idx in range(24):
+                        sample_images[idx, t] = samples[idx]
+                save_images(sample_images.reshape([144,64,64,1]), image_manifold_size(samples.shape[0]),
                     os.path.join(logdir, 'train_{:04d}.png'.format(step)))
-                print("[Sample] d_loss: %.8f, g_loss: %.8f" % (d_loss, g_loss)) 
-                #except Exception as e:
-                #    print("Problem saving image: [{}]".format(e))
-
             print("Epoch: [%03d] time: %4.4f, d_loss: %.8f, g_loss: %.8f" \
                 % (step, time.time() - start_time, errD_fake+errD_real, errG))
-            #duration = time.time() - start_time
-            #print('step {:d}/{:d}- loss = {:.7f}, ({:.3f} sec/step)'.format(step, num_steps, loss_value, duration))
-
-            #save(saver, sess, logdir, step)
-            last_saved_step = step
 
     except KeyboardInterrupt:
         print()
@@ -303,12 +287,6 @@ def main():
         #writer.close()
         #if last_saved_step and step > last_saved_step:
         #    save(saver, sess, logdir, step)
-
-
-def train(config):
-    pass
-
-        #if np.mod(counter, 500) == 2:
         #    model.save(config.checkpoint_dir, counter)
 
 if __name__ == '__main__':
