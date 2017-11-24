@@ -161,6 +161,7 @@ def main():
     batch_size = scrygan_params["batch_size"]
     sample_rate = 16000
     sample_size = scrygan_params["sample_size"]
+    save_interval = scrygan_params["save_interval"]
     num_t = scrygan_params["num_t"]
     print("sample_size: {}".format(sample_size))
     num_steps = scrygan_params["num_steps"]
@@ -226,7 +227,6 @@ def main():
             d_state = model.zero_state()
             d_state_ = model.zero_state()
             for t in range(num_t):
-            #for t in range(4):
                 batch_z = np.random.uniform(-1, 1, [model.batch_size, model.z_dim]).astype(np.float32)
                 #print("spectograms.shape: {}".format(spectrograms.shape))
                 t_batch = spectrograms[:,t]
@@ -254,8 +254,7 @@ def main():
                 writer.add_summary(d_summary_str, step)
                 writer.add_summary(g_summary_str, step)
 
-            #if True:
-            if np.mod(step, 10) == 1:
+            if np.mod(step, save_interval) == 0:
             #    save(saver, sess, logdir, step)
             #    last_saved_step = step
                 sample_images = []
@@ -268,14 +267,24 @@ def main():
                 print("training sample saved")
                 sample_images = np.zeros((24,6,64,64,1))
                 sampler_state = model.zero_state()
+                si = []
                 for t in range(6):
+                    sb = []
                     feed_dict = {model.z: sample_z}
                     model.load_placeholders(model.sampler, feed_dict, sampler_state)
                     samples, sampler_state = sess.run([model.sampler, model.state_out[model.sampler]], feed_dict=feed_dict)
                     for idx in range(24):
                         sample_images[idx, t] = samples[idx]
-                save_images(sample_images.reshape([144,64,64,1]), image_manifold_size(samples.shape[0]),
+                        sb.append(samples[idx])
+                    si.append(sb)
+                trythis = []
+                for idx in range(24):
+                    for t in range(6):
+                        trythis.append(si[t][idx])
+                save_images(np.array(trythis).reshape([144,64,64,1]), image_manifold_size(samples.shape[0]),
                     os.path.join(logdir, 'train_{:04d}.png'.format(step)))
+                #save_images(sample_images.reshape([144,64,64,1]), image_manifold_size(samples.shape[0]),
+                #    os.path.join(logdir, 'train_{:04d}.png'.format(step)))
             print("Epoch: [%03d] time: %4.4f, d_loss: %.8f, g_loss: %.8f" \
                 % (step, time.time() - start_time, errD_fake+errD_real, errG))
 

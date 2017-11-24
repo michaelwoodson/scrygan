@@ -11,6 +11,9 @@
 # Number of training steps.
 num_steps: 100000
 
+# Number of steps between saving.
+save_interval: 10
+
 # How many audio files to process at once.
 batch_size: 144
 
