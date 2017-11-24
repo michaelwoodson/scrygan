@@ -225,8 +225,8 @@ def main():
             g_state = model.zero_state()
             d_state = model.zero_state()
             d_state_ = model.zero_state()
-            #for t in range(num_t):
-            for t in range(4):
+            for t in range(num_t):
+            #for t in range(4):
                 batch_z = np.random.uniform(-1, 1, [model.batch_size, model.z_dim]).astype(np.float32)
                 #print("spectograms.shape: {}".format(spectrograms.shape))
                 t_batch = spectrograms[:,t]
@@ -254,8 +254,8 @@ def main():
                 writer.add_summary(d_summary_str, step)
                 writer.add_summary(g_summary_str, step)
 
-            if True:
-            #if np.mod(step, 200) == 1:
+            #if True:
+            if np.mod(step, 10) == 1:
             #    save(saver, sess, logdir, step)
             #    last_saved_step = step
                 sample_images = []
@@ -272,7 +272,6 @@ def main():
                     feed_dict = {model.z: sample_z}
                     model.load_placeholders(model.sampler, feed_dict, sampler_state)
                     samples, sampler_state = sess.run([model.sampler, model.state_out[model.sampler]], feed_dict=feed_dict)
-                    print("samples.shape {}".format(samples.shape))
                     for idx in range(24):
                         sample_images[idx, t] = samples[idx]
                 save_images(sample_images.reshape([144,64,64,1]), image_manifold_size(samples.shape[0]),
