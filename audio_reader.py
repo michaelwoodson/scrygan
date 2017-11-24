@@ -45,7 +45,8 @@ class AudioReader(object):
     def get_batch(self):
         batch = []
         for filename in randomize_files(self.files):
-            size = self.sample_size * self.num_t
+            size = int(self.sample_size * (self.num_t / 2)) + int(self.sample_size/2)
+            #print('size: {}'.format(size))
             start = random.randint(0, 46000000 - size)
             audio, _ = sf.read(filename, start=start, stop = start + size)
             batch.append(audio)

@@ -217,7 +217,10 @@ def main():
             spectrograms = []
             for idx, full_audio in enumerate(batch):
                 audio_sequence = []
-                for audio in np.split(full_audio, num_t):
+#                for audio in np.split(full_audio, num_t):
+                for t in range(0, num_t):
+                    start = t * int(sample_size/2)
+                    audio = full_audio[start : start + sample_size]
                     f, t, Sxx = signal.spectrogram(audio, 16000, nperseg=256, nfft=256)
                     Sxx = misc.imresize(Sxx, (64, 64))
                     audio_sequence.append(Sxx)
