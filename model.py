@@ -128,7 +128,7 @@ class ScryGanModel(object):
             nn = tf.reshape(nn, [self.batch_size, -1])
             projection, _, _ = linear(nn, output_size=self.n_lstm_hidden, scope='d_projection_linear')
             nn, placeholder_cs, placeholder_hs, state_out = self.lstm("d", projection)
-            nn = tf.nn.relu(nn)
+            #nn = tf.nn.relu(nn)
             nn = tf.concat([nn, projection], 1)
             nn, _, _ = linear(nn, output_size=1, scope='d_h4_lin')
 
@@ -152,7 +152,7 @@ class ScryGanModel(object):
             s_w16 = conv_out_size_same(s_w8, 2)
 
             nn, placeholder_cs, placeholder_hs, state_out = self.lstm("g", z)
-            nn = tf.nn.relu(nn)
+            #nn = tf.nn.relu(nn)
 
             nn = tf.concat([nn, z], axis=1)
 
