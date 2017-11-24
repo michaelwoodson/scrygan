@@ -157,7 +157,7 @@ class ScryGanModel(object):
             nn = tf.concat([nn, z], axis=1)
 
             # project `z` and reshape
-            nn, self.h0_w, self.h0_b = linear(z, output_size=self.gf_dim * s_w16 * s_w16 * 8, scope='g_h0_lin')
+            nn, self.h0_w, self.h0_b = linear(nn, output_size=self.gf_dim * s_w16 * s_w16 * 8, scope='g_h0_lin')
 
             self.h0 = tf.reshape(nn, [-1, s_w16, s_w16, self.gf_dim * 8])
             nn = tf.nn.relu(self.g_bn0(self.h0))
