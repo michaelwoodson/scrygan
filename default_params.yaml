@@ -12,7 +12,7 @@
 num_steps: 100000
 
 # Number of steps between saving.
-save_interval: 10
+save_interval: 20
 
 # How many audio files to process at once.
 batch_size: 144
@@ -23,7 +23,7 @@ d_learning_rate: 0.0001
 
 model:
   n_lstm_layers: 1
-  n_lstm_hidden: 16
+  n_lstm_hidden: 8
   gf_dim: 64
   df_dim: 64
   z_dim: 100
