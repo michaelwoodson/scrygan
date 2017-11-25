@@ -266,12 +266,12 @@ def main():
                         sample_images.append(spectrograms[idx,t,:,:])
                 save_images(np.array(sample_images).reshape([144,64,64,1]), (12,12),
                     os.path.join(logdir, 'sample_{:04d}.png'.format(step)))
-                sample_z = np.random.uniform(-1, 1, size=(model.batch_size, model.z_dim))
                 print("training sample saved")
                 sample_images = np.zeros((24,6,64,64,1))
                 sampler_state = model.zero_state()
                 si = []
                 for t in range(6):
+                    sample_z = np.random.uniform(-1, 1, size=(model.batch_size, model.z_dim))
                     sb = []
                     feed_dict = {model.z: sample_z}
                     model.load_placeholders(model.sampler, feed_dict, sampler_state)

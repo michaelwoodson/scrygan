@@ -23,7 +23,7 @@ d_learning_rate: 0.0001
 
 model:
   n_lstm_layers: 1
-  n_lstm_hidden: 8
+  n_lstm_hidden: 64
   gf_dim: 64
   df_dim: 64
   z_dim: 100
