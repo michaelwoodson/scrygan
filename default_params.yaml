@@ -31,8 +31,14 @@ model:
 # How many samples to read per timestep.
 sample_size: 48000
 
+# How much to overlap samples. Negative values to skip.
+overlap_size: -1000
+
 # Number of steps to run through the RNN.
 num_t: 8
+
+# Change z for each t
+change_z: True
 
 # Select the optimizer.
 optimizer: adam

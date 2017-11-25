@@ -31,10 +31,12 @@ class AudioReader(object):
                  audio_dir,
                  batch_size,
                  sample_size,
+                 overlap_size,
                  num_t):
         self.audio_dir = audio_dir
         self.batch_size = batch_size
         self.sample_size = sample_size
+        self.overlap_size = overlap_size
         self.num_t = num_t
         self.files = find_files(audio_dir)
         print("files length: {}".format(len(self.files)))
@@ -45,7 +47,7 @@ class AudioReader(object):
     def get_batch(self):
         batch = []
         for filename in randomize_files(self.files):
-            size = int(self.sample_size * (self.num_t / 2)) + int(self.sample_size/2)
+            size = self.sample_size * self.num_t - self.overlap_size * (self.num_t - 1)
             #print('size: {}'.format(size))
             start = random.randint(0, 46000000 - size)
             audio, _ = sf.read(filename, start=start, stop = start + size)

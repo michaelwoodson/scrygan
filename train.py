@@ -161,7 +161,9 @@ def main():
     batch_size = scrygan_params["batch_size"]
     sample_rate = 16000
     sample_size = scrygan_params["sample_size"]
+    overlap_size = scrygan_params["overlap_size"]
     save_interval = scrygan_params["save_interval"]
+    change_z = scrygan_params["change_z"]
     num_t = scrygan_params["num_t"]
     print("sample_size: {}".format(sample_size))
     num_steps = scrygan_params["num_steps"]
@@ -170,6 +172,7 @@ def main():
             args.data_dir,
             batch_size=batch_size,
             sample_size=sample_size,
+            overlap_size=overlap_size,
             num_t=num_t)
     model = ScryGanModel(
         batch_size=batch_size,
@@ -217,9 +220,8 @@ def main():
             spectrograms = []
             for idx, full_audio in enumerate(batch):
                 audio_sequence = []
-#                for audio in np.split(full_audio, num_t):
                 for t in range(0, num_t):
-                    start = t * int(sample_size/2)
+                    start = t * sample_size - overlap_size * t
                     audio = full_audio[start : start + sample_size]
                     f, t, Sxx = signal.spectrogram(audio, 16000, nperseg=256, nfft=256)
                     Sxx = misc.imresize(Sxx, (64, 64))
@@ -229,8 +231,10 @@ def main():
             g_state = model.zero_state()
             d_state = model.zero_state()
             d_state_ = model.zero_state()
+            batch_z = np.random.uniform(-1, 1, [model.batch_size, model.z_dim]).astype(np.float32)
             for t in range(num_t):
-                batch_z = np.random.uniform(-1, 1, [model.batch_size, model.z_dim]).astype(np.float32)
+                if change_z:
+                    batch_z = np.random.uniform(-1, 1, [model.batch_size, model.z_dim]).astype(np.float32)
                 #print("spectograms.shape: {}".format(spectrograms.shape))
                 t_batch = spectrograms[:,t]
                 #print("t_batch.shape: {}".format(t_batch.shape))
@@ -270,8 +274,10 @@ def main():
                 sample_images = np.zeros((24,6,64,64,1))
                 sampler_state = model.zero_state()
                 si = []
+                sample_z = np.random.uniform(-1, 1, size=(model.batch_size, model.z_dim))
                 for t in range(6):
-                    sample_z = np.random.uniform(-1, 1, size=(model.batch_size, model.z_dim))
+                    if change_z:
+                        sample_z = np.random.uniform(-1, 1, size=(model.batch_size, model.z_dim))
                     sb = []
                     feed_dict = {model.z: sample_z}
                     model.load_placeholders(model.sampler, feed_dict, sampler_state)
