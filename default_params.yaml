@@ -23,10 +23,10 @@ d_learning_rate: 0.0001
 
 model:
   n_lstm_layers: 1
-  n_lstm_hidden: 128
-  gf_dim: 128
+  n_lstm_hidden: 32
+  gf_dim: 64
   df_dim: 64
-  z_dim: 128
+  z_dim: 64
 
 # How many samples to read per timestep.
 sample_size: 48000
@@ -35,10 +35,10 @@ sample_size: 48000
 overlap_size: -1000
 
 # Number of steps to run through the RNN.
-num_t: 8
+num_t: 32
 
 # Change z for each t
-change_z: True
+fast_z: 32
 
 # Select the optimizer.
 optimizer: adam

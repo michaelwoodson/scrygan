@@ -163,7 +163,7 @@ def main():
     sample_size = scrygan_params["sample_size"]
     overlap_size = scrygan_params["overlap_size"]
     save_interval = scrygan_params["save_interval"]
-    change_z = scrygan_params["change_z"]
+    fast_z = scrygan_params["fast_z"]
     num_t = scrygan_params["num_t"]
     print("sample_size: {}".format(sample_size))
     num_steps = scrygan_params["num_steps"]
@@ -231,10 +231,13 @@ def main():
             g_state = model.zero_state()
             d_state = model.zero_state()
             d_state_ = model.zero_state()
-            batch_z = np.random.uniform(-1, 1, [model.batch_size, model.z_dim]).astype(np.float32)
+            slow_z_batch = np.random.uniform(-1, 1, [model.batch_size, model.z_dim - fast_z]).astype(np.float32)
             for t in range(num_t):
-                if change_z:
-                    batch_z = np.random.uniform(-1, 1, [model.batch_size, model.z_dim]).astype(np.float32)
+                if fast_z > 0:
+                    fast_z_batch = np.random.uniform(-1, 1, [model.batch_size, fast_z]).astype(np.float32)
+                    batch_z = np.concatenate([slow_z_batch, fast_z_batch], axis=1)
+                else:
+                    batch_z = slow_z_batch
                 #print("spectograms.shape: {}".format(spectrograms.shape))
                 t_batch = spectrograms[:,t]
                 #print("t_batch.shape: {}".format(t_batch.shape))
@@ -274,10 +277,13 @@ def main():
                 sample_images = np.zeros((24,6,64,64,1))
                 sampler_state = model.zero_state()
                 si = []
-                sample_z = np.random.uniform(-1, 1, size=(model.batch_size, model.z_dim))
+                slow_z_batch = np.random.uniform(-1, 1, [model.batch_size, model.z_dim - fast_z]).astype(np.float32)
                 for t in range(6):
-                    if change_z:
-                        sample_z = np.random.uniform(-1, 1, size=(model.batch_size, model.z_dim))
+                    if fast_z > 0:
+                        fast_z_batch = np.random.uniform(-1, 1, [model.batch_size, fast_z]).astype(np.float32)
+                        sample_z = np.concatenate([slow_z_batch, fast_z_batch], axis=1)
+                    else:
+                        sample_z = slow_z_batch
                     sb = []
                     feed_dict = {model.z: sample_z}
                     model.load_placeholders(model.sampler, feed_dict, sampler_state)
