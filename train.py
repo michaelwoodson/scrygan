@@ -232,6 +232,7 @@ def main():
             d_state = model.zero_state()
             d_state_ = model.zero_state()
             slow_z_batch = np.random.uniform(-1, 1, [model.batch_size, model.z_dim - fast_z]).astype(np.float32)
+            do_sampling = np.mod(step, save_interval) == 0
             for t in range(num_t):
                 if fast_z > 0:
                     fast_z_batch = np.random.uniform(-1, 1, [model.batch_size, fast_z]).astype(np.float32)
@@ -249,7 +250,7 @@ def main():
                 model.load_placeholders(model.D, feed_dict, d_state)
                 model.load_placeholders(model.D_, feed_dict, d_state_)
                 model.load_placeholders(model.G, feed_dict, g_state)
-                _, _, errD_fake, errD_real, errG, d_summary_str, g_summary_str, d_state, d_state_, g_state = sess.run([
+                _, _, errD_fake, errD_real, errG, d_summary_str, g_summary_str, d_state, d_state_, g_state, samples = sess.run([
                     d_optim,
                     g_optim,
                     model.d_loss_fake,
@@ -259,12 +260,13 @@ def main():
                     model.g_sum,
                     model.state_out[model.D],
                     model.state_out[model.D_],
-                    model.state_out[model.G]
+                    model.state_out[model.G],
+                    model.G if do_sampling else model.g_sum
                 ], feed_dict=feed_dict)
                 writer.add_summary(d_summary_str, step)
                 writer.add_summary(g_summary_str, step)
 
-            if np.mod(step, save_interval) == 0:
+            if do_sampling:
             #    save(saver, sess, logdir, step)
             #    last_saved_step = step
                 sample_images = []
@@ -277,17 +279,17 @@ def main():
                 sample_images = np.zeros((24,6,64,64,1))
                 sampler_state = model.zero_state()
                 si = []
-                slow_z_batch = np.random.uniform(-1, 1, [model.batch_size, model.z_dim - fast_z]).astype(np.float32)
+                #slow_z_batch = np.random.uniform(-1, 1, [model.batch_size, model.z_dim - fast_z]).astype(np.float32)
                 for t in range(6):
-                    if fast_z > 0:
-                        fast_z_batch = np.random.uniform(-1, 1, [model.batch_size, fast_z]).astype(np.float32)
-                        sample_z = np.concatenate([slow_z_batch, fast_z_batch], axis=1)
-                    else:
-                        sample_z = slow_z_batch
+                #    if fast_z > 0:
+                #        fast_z_batch = np.random.uniform(-1, 1, [model.batch_size, fast_z]).astype(np.float32)
+                #        sample_z = np.concatenate([slow_z_batch, fast_z_batch], axis=1)
+                #    else:
+                #        sample_z = slow_z_batch
                     sb = []
-                    feed_dict = {model.z: sample_z}
-                    model.load_placeholders(model.sampler, feed_dict, sampler_state)
-                    samples, sampler_state = sess.run([model.sampler, model.state_out[model.sampler]], feed_dict=feed_dict)
+                #    feed_dict = {model.z: sample_z}
+                #    model.load_placeholders(model.sampler, feed_dict, sampler_state)
+                #    samples, sampler_state = sess.run([model.sampler, model.state_out[model.sampler]], feed_dict=feed_dict)
                     for idx in range(24):
                         sample_images[idx, t] = samples[idx]
                         sb.append(samples[idx])

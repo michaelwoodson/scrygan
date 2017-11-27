@@ -127,8 +127,8 @@ class ScryGanModel(object):
             nn = lrelu(self.d_bn3(conv2d(nn, self.df_dim*8, name='d_h3_conv')))
             nn = tf.reshape(nn, [self.batch_size, -1])
             projection, _, _ = linear(nn, output_size=self.n_lstm_hidden, scope='d_projection_linear')
+            projection = tf.nn.relu(projection)
             nn, placeholder_cs, placeholder_hs, state_out = self.lstm("d", projection)
-            #nn = tf.nn.relu(nn)
             nn = tf.concat([nn, projection], 1)
             nn, _, _ = linear(nn, output_size=1, scope='d_h4_lin')
 
