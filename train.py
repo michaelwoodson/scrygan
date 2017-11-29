@@ -298,7 +298,7 @@ def main():
                 for idx in range(24):
                     for t in range(6):
                         trythis.append(si[t][idx])
-                save_images(np.array(trythis).reshape([144,64,64,1]), image_manifold_size(samples.shape[0]),
+                save_images(np.array(trythis).reshape([144,64,64,1]), (12,12),
                     os.path.join(logdir, 'train_{:04d}.png'.format(step)))
                 #save_images(sample_images.reshape([144,64,64,1]), image_manifold_size(samples.shape[0]),
                 #    os.path.join(logdir, 'train_{:04d}.png'.format(step)))
