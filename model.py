@@ -36,6 +36,7 @@ class ScryGanModel(object):
         self.d_bn2 = batch_norm(name='d_bn2')
         self.d_bn3 = batch_norm(name='d_bn3')
 
+        self.g_bn00 = batch_norm(name='g_bn00')
         self.g_bn0 = batch_norm(name='g_bn0')
         self.g_bn1 = batch_norm(name='g_bn1')
         self.g_bn2 = batch_norm(name='g_bn2')
@@ -126,12 +127,20 @@ class ScryGanModel(object):
             nn = lrelu(self.d_bn2(conv2d(nn, self.df_dim*4, name='d_h2_conv')))
             nn = lrelu(self.d_bn3(conv2d(nn, self.df_dim*8, name='d_h3_conv')))
             flat = tf.reshape(nn, [self.batch_size, -1])
+
+            # Project, run through lstm, concatenate projection with convoluation.
             #projection, _, _ = linear(flat, output_size=self.n_lstm_hidden, scope='d_projection_linear')
             #projection = tf.nn.relu(projection)
             #nn, placeholder_cs, placeholder_hs, state_out = self.lstm("d", projection)
             #nn = tf.concat([nn, projection], 1)
+
+            # Concatenate lstm with flattened convolution
+            #nn, placeholder_cs, placeholder_hs, state_out = self.lstm("d", flat)
+            #nn = tf.concat([nn, flat], 1)
+
+            # Force everything through lstm
             nn, placeholder_cs, placeholder_hs, state_out = self.lstm("d", flat)
-            nn = tf.concat([nn, flat], 1)
+
             nn, _, _ = linear(nn, output_size=1, scope='d_h4_lin')
 
             d = tf.nn.sigmoid(nn)
@@ -154,9 +163,9 @@ class ScryGanModel(object):
             s_w16 = conv_out_size_same(s_w8, 2)
 
             nn, placeholder_cs, placeholder_hs, state_out = self.lstm("g", z)
-            #nn = tf.nn.relu(nn)
+            nn = tf.nn.relu(self.g_bn00(nn))
 
-            nn = tf.concat([nn, z], axis=1)
+            #nn = tf.concat([nn, z], axis=1)
 
             # project `z` and reshape
             nn, self.h0_w, self.h0_b = linear(nn, output_size=self.gf_dim * s_w16 * s_w16 * 8, scope='g_h0_lin')

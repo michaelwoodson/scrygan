@@ -129,6 +129,9 @@ def save_images(images, size, image_path):
     return imsave(inverse_transform(images), size, image_path)
 
 def imsave(images, size, path):
+    print("saving {}".format(path))
+    print(images[0])
+    print("\n")
     image = np.squeeze(merge(images, size))
     return scipy.misc.imsave(path, image)
 

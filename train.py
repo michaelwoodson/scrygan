@@ -231,14 +231,18 @@ def main():
             g_state = model.zero_state()
             d_state = model.zero_state()
             d_state_ = model.zero_state()
-            slow_z_batch = np.random.uniform(-1, 1, [model.batch_size, model.z_dim - fast_z]).astype(np.float32)
+            slow_z = model.z_dim - fast_z
+            slow_z_batch = np.random.uniform(-1, 1, [model.batch_size, slow_z]).astype(np.float32)
             do_sampling = np.mod(step, save_interval) == 0
             for t in range(num_t):
-                if fast_z > 0:
+                if fast_z == 0:
+                    batch_z = slow_z_batch
+                elif slow_z == 0:
+                    fast_z_batch = np.random.uniform(-1, 1, [model.batch_size, fast_z]).astype(np.float32)
+                    batch_z = fast_z_batch
+                else:
                     fast_z_batch = np.random.uniform(-1, 1, [model.batch_size, fast_z]).astype(np.float32)
                     batch_z = np.concatenate([slow_z_batch, fast_z_batch], axis=1)
-                else:
-                    batch_z = slow_z_batch
                 #print("spectograms.shape: {}".format(spectrograms.shape))
                 t_batch = spectrograms[:,t]
                 #print("t_batch.shape: {}".format(t_batch.shape))
