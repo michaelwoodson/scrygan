@@ -179,7 +179,7 @@ class ScryGanModel(object):
             s_w16 = conv_out_size_same(s_w8, 2)
 
             nn, placeholder_cs, placeholder_hs, state_out = self.lstm("g", z, self.g_lstm_layers, self.g_lstm_hidden)
-            nn = lrelu(self.g_bn00(nn))
+            #nn = lrelu(self.g_bn00(nn))
 
             nn = tf.concat([nn, z], axis=1)
 
