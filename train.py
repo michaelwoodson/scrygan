@@ -227,7 +227,8 @@ def main():
                     Sxx = misc.imresize(Sxx, (64, 64))
                     audio_sequence.append(Sxx)
                 spectrograms.append(audio_sequence)
-            spectrograms = np.array(spectrograms) / 256.0
+            spectrograms = np.array(spectrograms)
+            #spectrograms = np.array(spectrograms) / 256.0
             g_state = model.g_zero_state()
             d_state = model.d_zero_state()
             d_state_ = model.d_zero_state()
@@ -279,14 +280,14 @@ def main():
                 for idx in range(24):
                     for t in range(6):
                         real_images.append(spectrograms[idx,t,:,:])
-                save_images(np.array(real_images).reshape([144,64,64,1]) * 256, (12,12),
+                save_images(np.array(real_images).reshape([144,64,64,1]), (12,12),
                     os.path.join(logdir, 'real_{:04d}.png'.format(step)))
                 print("real sample saved")
                 generator_images = []
                 for idx in range(24):
                     for t in range(6):
                         generator_images.append(samples[t][idx])
-                generator_images = np.array(generator_images).reshape([144,64,64,1]) * 256
+                generator_images = np.array(generator_images).reshape([144,64,64,1])
                 save_images(generator_images, (12,12),
                     os.path.join(logdir, 'generator_{:04d}.png'.format(step)))
             print("Epoch: [%03d] time: %4.4f, d_loss: %.8f, g_loss: %.8f" \
