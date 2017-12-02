@@ -181,7 +181,7 @@ class ScryGanModel(object):
             nn, placeholder_cs, placeholder_hs, state_out = self.lstm("g", z, self.g_lstm_layers, self.g_lstm_hidden)
             #nn = lrelu(self.g_bn00(nn))
 
-            nn = tf.concat([nn, z], axis=1)
+            #nn = tf.concat([nn, z], axis=1)
 
             # project `z` and reshape
             nn, self.h0_w, self.h0_b = linear(nn, output_size=self.gf_dim * s_w16 * s_w16 * 8, scope='g_h0_lin')
