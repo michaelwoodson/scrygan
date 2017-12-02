@@ -12,7 +12,7 @@
 num_steps: 100000
 
 # Number of steps between saving.
-save_interval: 20
+save_interval: 10
 
 # How many audio files to process at once.
 batch_size: 144
@@ -22,8 +22,10 @@ g_learning_rate: 0.0002
 d_learning_rate: 0.0001
 
 model:
-  n_lstm_layers: 2
-  n_lstm_hidden: 128
+  d_lstm_layers: 2
+  d_lstm_hidden: 256
+  g_lstm_layers: 2
+  g_lstm_hidden: 256
   gf_dim: 128
   df_dim: 64
   z_dim: 128
@@ -38,7 +40,7 @@ overlap_size: -48000
 num_t: 16
 
 # Change z for each t
-fast_z: 0
+fast_z: 128
 
 # Select the optimizer.
 optimizer: adam

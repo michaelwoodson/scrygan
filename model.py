@@ -13,8 +13,10 @@ class ScryGanModel(object):
     def __init__(self,
                  batch_size,
                  sample_size,
-                 n_lstm_layers,
-                 n_lstm_hidden,
+                 g_lstm_layers,
+                 g_lstm_hidden,
+                 d_lstm_layers,
+                 d_lstm_hidden,
                  gf_dim,
                  df_dim,
                  z_dim):
@@ -24,8 +26,10 @@ class ScryGanModel(object):
         '''Initializes the ScryGan model. See default_params.yaml for each setting.'''
         self.batch_size = batch_size
         self.sample_size = sample_size
-        self.n_lstm_layers = n_lstm_layers
-        self.n_lstm_hidden = n_lstm_hidden
+        self.g_lstm_layers = g_lstm_layers
+        self.g_lstm_hidden = g_lstm_hidden
+        self.d_lstm_layers = d_lstm_layers
+        self.d_lstm_hidden = d_lstm_hidden
         self.gf_dim = gf_dim
         self.df_dim = df_dim
         self.c_dim = 1
@@ -80,16 +84,16 @@ class ScryGanModel(object):
         self.d_vars = [var for var in t_vars if 'd_' in var.name]
         self.g_vars = [var for var in t_vars if 'g_' in var.name]
 
-    def lstm(self, key, inputs):
+    def lstm(self, key, inputs, n_layers, n_hidden):
         def lstm_cell():
-            return tf.contrib.rnn.LSTMBlockCell(self.n_lstm_hidden, forget_bias=1.0)
+            return tf.contrib.rnn.LSTMBlockCell(n_hidden, forget_bias=1.0)
         print('inputs shape: {}'.format(inputs.shape))
-        cells = [lstm_cell() for _ in range(self.n_lstm_layers)]
-        placeholder_cs = [tf.placeholder(tf.float32, name="{}_c_{}".format(key, i), shape=(self.batch_size, self.n_lstm_hidden)) for i in range(self.n_lstm_layers)]
-        placeholder_hs = [tf.placeholder(tf.float32, name="{}_h_{}".format(key, i), shape=(self.batch_size, self.n_lstm_hidden)) for i in range(self.n_lstm_layers)]
-        if self.n_lstm_layers == 0:
+        cells = [lstm_cell() for _ in range(n_layers)]
+        placeholder_cs = [tf.placeholder(tf.float32, name="{}_c_{}".format(key, i), shape=(self.batch_size, n_hidden)) for i in range(n_layers)]
+        placeholder_hs = [tf.placeholder(tf.float32, name="{}_h_{}".format(key, i), shape=(self.batch_size, n_hidden)) for i in range(n_layers)]
+        if n_layers == 0:
             return inputs, inputs
-        elif self.n_lstm_layers == 1:
+        elif n_layers == 1:
             state = rnn.LSTMStateTuple(placeholder_cs[0], placeholder_hs[0])
             cell = cells[0]
         else:
@@ -98,16 +102,28 @@ class ScryGanModel(object):
         outputs, state_out = cell(inputs, state, scope="{}_rnn".format(key))
         return outputs, placeholder_cs, placeholder_hs, state_out
 
-    def zero_state(self):
+    def d_zero_state(self):
+        return self.zero_state(self.d_lstm_layers, self.d_lstm_hidden)
+
+    def g_zero_state(self):
+        return self.zero_state(self.g_lstm_layers, self.g_lstm_hidden)
+
+    def zero_state(self, layers, hidden):
         def zero_tuple():
-            return rnn.LSTMStateTuple(np.zeros((self.batch_size, self.n_lstm_hidden), np.float32), np.zeros((self.batch_size, self.n_lstm_hidden), np.float32))
-        if self.n_lstm_layers == 1:
+            return rnn.LSTMStateTuple(np.zeros((self.batch_size, hidden), np.float32), np.zeros((self.batch_size, hidden), np.float32))
+        if layers == 1:
             return zero_tuple()
         else:
-            return [zero_tuple() for _ in range(self.n_lstm_layers)]
+            return [zero_tuple() for _ in range(layers)]
 
-    def load_placeholders(self, key, feed_dict, states):
-        if self.n_lstm_layers == 1:
+    def d_load_placeholders(self, key, feed_dict, states):
+        self.load_placeholders(key, feed_dict, states, self.d_lstm_layers)
+
+    def g_load_placeholders(self, key, feed_dict, states):
+        self.load_placeholders(key, feed_dict, states, self.g_lstm_layers)
+
+    def load_placeholders(self, key, feed_dict, states, layers):
+        if layers == 1:
             feed_dict[self.placeholder_cs[key][0]] = states[0]
             feed_dict[self.placeholder_hs[key][0]] = states[1]
         else:
@@ -139,7 +155,7 @@ class ScryGanModel(object):
             #nn = tf.concat([nn, flat], 1)
 
             # Force everything through lstm
-            nn, placeholder_cs, placeholder_hs, state_out = self.lstm("d", flat)
+            nn, placeholder_cs, placeholder_hs, state_out = self.lstm("d", flat, self.d_lstm_layers, self.d_lstm_hidden)
 
             nn, _, _ = linear(nn, output_size=1, scope='d_h4_lin')
 
@@ -162,8 +178,8 @@ class ScryGanModel(object):
             s_w8 = conv_out_size_same(s_w4, 2)
             s_w16 = conv_out_size_same(s_w8, 2)
 
-            nn, placeholder_cs, placeholder_hs, state_out = self.lstm("g", z)
-            nn = tf.nn.relu(self.g_bn00(nn))
+            nn, placeholder_cs, placeholder_hs, state_out = self.lstm("g", z, self.g_lstm_layers, self.g_lstm_hidden)
+            nn = lrelu(self.g_bn00(nn))
 
             #nn = tf.concat([nn, z], axis=1)
 
@@ -171,13 +187,13 @@ class ScryGanModel(object):
             nn, self.h0_w, self.h0_b = linear(nn, output_size=self.gf_dim * s_w16 * s_w16 * 8, scope='g_h0_lin')
 
             self.h0 = tf.reshape(nn, [-1, s_w16, s_w16, self.gf_dim * 8])
-            nn = tf.nn.relu(self.g_bn0(self.h0))
+            nn = lrelu(self.g_bn0(self.h0))
             self.h1, _, _ = deconv2d(nn, [self.batch_size, s_w8, s_w8, self.gf_dim*4], name='g_h1')
-            nn = tf.nn.relu(self.g_bn1(self.h1))
+            nn = lrelu(self.g_bn1(self.h1))
             nn, _, _ = deconv2d(nn, [self.batch_size, s_w4, s_w4, self.gf_dim*2], name='g_h2')
-            nn = tf.nn.relu(self.g_bn2(nn))
+            nn = lrelu(self.g_bn2(nn))
             nn, _, _ = deconv2d(nn, [self.batch_size, s_w2, s_w2, self.gf_dim*1], name='g_h3')
-            nn = tf.nn.relu(self.g_bn3(nn))
+            nn = lrelu(self.g_bn3(nn))
             nn, _, _ = deconv2d(nn, [self.batch_size, s_w, s_w, self.c_dim], name='g_h4')
             #return tf.nn.tanh(nn)
             g = tf.nn.relu(nn)

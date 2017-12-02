@@ -227,13 +227,14 @@ def main():
                     Sxx = misc.imresize(Sxx, (64, 64))
                     audio_sequence.append(Sxx)
                 spectrograms.append(audio_sequence)
-            spectrograms = np.array(spectrograms)
-            g_state = model.zero_state()
-            d_state = model.zero_state()
-            d_state_ = model.zero_state()
+            spectrograms = np.array(spectrograms) / 256.0
+            g_state = model.g_zero_state()
+            d_state = model.d_zero_state()
+            d_state_ = model.d_zero_state()
             slow_z = model.z_dim - fast_z
             slow_z_batch = np.random.uniform(-1, 1, [model.batch_size, slow_z]).astype(np.float32)
             do_sampling = np.mod(step, save_interval) == 0
+            samples = []
             for t in range(num_t):
                 if fast_z == 0:
                     batch_z = slow_z_batch
@@ -251,10 +252,10 @@ def main():
 
                 # Update network
                 feed_dict = {model.inputs: raw_audio_batch, model.z: batch_z}
-                model.load_placeholders(model.D, feed_dict, d_state)
-                model.load_placeholders(model.D_, feed_dict, d_state_)
-                model.load_placeholders(model.G, feed_dict, g_state)
-                _, _, errD_fake, errD_real, errG, d_summary_str, g_summary_str, d_state, d_state_, g_state, samples = sess.run([
+                model.d_load_placeholders(model.D, feed_dict, d_state)
+                model.d_load_placeholders(model.D_, feed_dict, d_state_)
+                model.g_load_placeholders(model.G, feed_dict, g_state)
+                _, _, errD_fake, errD_real, errG, d_summary_str, g_summary_str, d_state, d_state_, g_state, t_samples = sess.run([
                     d_optim,
                     g_optim,
                     model.d_loss_fake,
@@ -269,43 +270,25 @@ def main():
                 ], feed_dict=feed_dict)
                 writer.add_summary(d_summary_str, step)
                 writer.add_summary(g_summary_str, step)
+                samples.append(t_samples)
 
             if do_sampling:
             #    save(saver, sess, logdir, step)
             #    last_saved_step = step
-                sample_images = []
+                real_images = []
                 for idx in range(24):
                     for t in range(6):
-                        sample_images.append(spectrograms[idx,t,:,:])
-                save_images(np.array(sample_images).reshape([144,64,64,1]), (12,12),
-                    os.path.join(logdir, 'sample_{:04d}.png'.format(step)))
-                print("training sample saved")
-                sample_images = np.zeros((24,6,64,64,1))
-                sampler_state = model.zero_state()
-                si = []
-                #slow_z_batch = np.random.uniform(-1, 1, [model.batch_size, model.z_dim - fast_z]).astype(np.float32)
-                for t in range(6):
-                #    if fast_z > 0:
-                #        fast_z_batch = np.random.uniform(-1, 1, [model.batch_size, fast_z]).astype(np.float32)
-                #        sample_z = np.concatenate([slow_z_batch, fast_z_batch], axis=1)
-                #    else:
-                #        sample_z = slow_z_batch
-                    sb = []
-                #    feed_dict = {model.z: sample_z}
-                #    model.load_placeholders(model.sampler, feed_dict, sampler_state)
-                #    samples, sampler_state = sess.run([model.sampler, model.state_out[model.sampler]], feed_dict=feed_dict)
-                    for idx in range(24):
-                        sample_images[idx, t] = samples[idx]
-                        sb.append(samples[idx])
-                    si.append(sb)
-                trythis = []
+                        real_images.append(spectrograms[idx,t,:,:])
+                save_images(np.array(real_images).reshape([144,64,64,1]) * 256, (12,12),
+                    os.path.join(logdir, 'real_{:04d}.png'.format(step)))
+                print("real sample saved")
+                generator_images = []
                 for idx in range(24):
                     for t in range(6):
-                        trythis.append(si[t][idx])
-                save_images(np.array(trythis).reshape([144,64,64,1]), (12,12),
-                    os.path.join(logdir, 'train_{:04d}.png'.format(step)))
-                #save_images(sample_images.reshape([144,64,64,1]), image_manifold_size(samples.shape[0]),
-                #    os.path.join(logdir, 'train_{:04d}.png'.format(step)))
+                        generator_images.append(samples[t][idx])
+                generator_images = np.array(generator_images).reshape([144,64,64,1]) * 256
+                save_images(generator_images, (12,12),
+                    os.path.join(logdir, 'generator_{:04d}.png'.format(step)))
             print("Epoch: [%03d] time: %4.4f, d_loss: %.8f, g_loss: %.8f" \
                 % (step, time.time() - start_time, errD_fake+errD_real, errG))
 
