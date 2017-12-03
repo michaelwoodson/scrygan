@@ -220,12 +220,15 @@ def main():
             spectrograms = []
             for idx, full_audio in enumerate(batch):
                 audio_sequence = []
-                for t in range(0, num_t):
+                for t in range(0, int(num_t/2)):
                     start = t * sample_size - overlap_size * t
                     audio = full_audio[start : start + sample_size]
-                    f, t, Sxx = signal.spectrogram(audio, 16000, nperseg=256, nfft=256)
-                    Sxx = misc.imresize(Sxx, (64, 64))
-                    audio_sequence.append(Sxx)
+                    _, _, Sxx = signal.spectrogram(audio, 16000, nperseg=256, nfft=256)
+                    if (idx == 0) and (t == 0):
+                        print('sxx size: {}'.format(Sxx.shape))
+                    Sxx = misc.imresize(Sxx, (128, 128))
+                    audio_sequence.append(Sxx[0:64,0:64])
+                    audio_sequence.append(Sxx[64:,0:64])
                 spectrograms.append(audio_sequence)
             spectrograms = np.array(spectrograms)
             #spectrograms = np.array(spectrograms) / 256.0
