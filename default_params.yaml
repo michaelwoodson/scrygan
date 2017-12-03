@@ -34,7 +34,7 @@ model:
 sample_size: 48000
 
 # How much to overlap samples. Negative values to skip.
-overlap_size: -48000
+overlap_size: 0
 
 # Number of steps to run through the RNN.
 num_t: 16
