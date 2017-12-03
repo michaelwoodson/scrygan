@@ -197,17 +197,17 @@ def main():
     text_file.close()
 
     saved_global_step = -1
-    #try:
-    #    saved_global_step = load(saver, sess, restore_from)
-    #    if is_overwritten_training or saved_global_step is None:
+    try:
+        saved_global_step = load(saver, sess, restore_from)
+        if is_overwritten_training or saved_global_step is None:
             # The first training step will be saved_global_step + 1,
             # therefore we put -1 here for new or overwritten trainings.
-    #        saved_global_step = -1
-    #except:
-    #    print("Something went wrong while restoring checkpoint. "
-    #        "We will terminate training to avoid accidentally overwriting "
-    #        "the previous model.")
-    #    raise
+            saved_global_step = -1
+    except:
+        print("Something went wrong while restoring checkpoint. "
+            "We will terminate training to avoid accidentally overwriting "
+            "the previous model.")
+        raise
 
     step = None
     last_saved_step = saved_global_step
@@ -277,8 +277,8 @@ def main():
                 samples.append(t_samples)
 
             if do_sampling:
-            #    save(saver, sess, logdir, step)
-            #    last_saved_step = step
+                save(saver, sess, logdir, step)
+                last_saved_step = step
                 real_images = []
                 for idx in range(24):
                     for t in range(6):
