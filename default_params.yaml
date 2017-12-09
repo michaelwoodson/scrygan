@@ -15,7 +15,7 @@ num_steps: 100000
 save_interval: 10
 
 # How many audio files to process at once.
-batch_size: 144
+batch_size: 128
 
 # Learning rate for training.
 g_learning_rate: 0.0002
@@ -23,9 +23,9 @@ d_learning_rate: 0.0001
 
 model:
   d_lstm_layers: 1
-  d_lstm_hidden: 256
+  d_lstm_hidden: 128
   g_lstm_layers: 1
-  g_lstm_hidden: 256
+  g_lstm_hidden: 128
   gf_dim: 128
   df_dim: 64
   z_dim: 128

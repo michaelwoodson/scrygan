@@ -44,14 +44,18 @@ class AudioReader(object):
         if not self.files:
             raise ValueError("No audio files found in '{}'.".format(audio_dir))
 
+
     def get_batch(self):
         batch = []
-        for filename in randomize_files(self.files):
-            size = self.sample_size * self.num_t - self.overlap_size * (self.num_t - 1)
-            #print('size: {}'.format(size))
-            start = random.randint(0, 46000000 - size)
-            audio, _ = sf.read(filename, start=start, stop = start + size)
-            batch.append(audio)
-            if len(batch) == self.batch_size:
-                break
+        def load_batch():
+            for filename in randomize_files(self.files):
+                size = self.sample_size * self.num_t - self.overlap_size * (self.num_t - 1)
+                start = random.randint(0, 46000000 - size)
+                audio, _ = sf.read(filename, start=start, stop = start + size)
+                batch.append(audio)
+                if len(batch) == self.batch_size:
+                    return True
+            return False
+        while not load_batch():
+            pass
         return batch
