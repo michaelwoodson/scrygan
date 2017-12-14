@@ -126,7 +126,7 @@ def linear(input_, output_size, scope=None, stddev=0.02, bias_start=0.0):
 
 
 def save_images(images, size, image_path):
-    return imsave(inverse_transform(images), size, image_path)
+    return imsave(inverse_transform(images*256.0), size, image_path)
 
 def imsave(images, size, path):
     image = np.squeeze(merge(images, size))

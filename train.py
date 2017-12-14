@@ -228,8 +228,8 @@ def main():
                     audio_sequence.append(Sxx[0:64,0:64])
                     audio_sequence.append(Sxx[0:64,64:])
                 spectrograms.append(audio_sequence)
-            spectrograms = np.array(spectrograms)
-            #spectrograms = np.array(spectrograms) / 256.0
+            #spectrograms = np.array(spectrograms)
+            spectrograms = np.array(spectrograms) / 256.0
             g_state = model.g_zero_state()
             d_state = model.d_zero_state()
             d_state_ = model.d_zero_state()

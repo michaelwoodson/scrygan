@@ -195,8 +195,9 @@ class ScryGanModel(object):
             nn, _, _ = deconv2d(nn, [self.batch_size, s_w2, s_w2, self.gf_dim*1], name='g_h3')
             nn = lrelu(self.g_bn3(nn))
             nn, _, _ = deconv2d(nn, [self.batch_size, s_w, s_w, self.c_dim], name='g_h4')
-            #return tf.nn.tanh(nn)
-            g = tf.nn.relu(nn)
+            g = tf.nn.sigmoid(nn)
+            #g = tf.nn.tanh(nn)
+            #g = tf.nn.relu(nn)
             self.placeholder_cs[g] = placeholder_cs
             self.placeholder_hs[g] = placeholder_hs
             self.state_out[g] = state_out
