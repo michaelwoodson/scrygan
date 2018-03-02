@@ -15,7 +15,7 @@ num_steps: 100000
 save_interval: 10
 
 # How many audio files to process at once.
-batch_size: 128
+batch_size: 256
 
 # Learning rate for training.
 g_learning_rate: 0.0002
@@ -23,10 +23,10 @@ d_learning_rate: 0.0001
 
 model:
   d_lstm_layers: 1
-  d_lstm_hidden: 128
+  d_lstm_hidden: 256
   g_lstm_layers: 1
-  g_lstm_hidden: 128
-  gf_dim: 128
+  g_lstm_hidden: 256
+  gf_dim: 256
   df_dim: 64
   z_dim: 128
 
@@ -37,7 +37,7 @@ sample_size: 48000
 overlap_size: 0
 
 # Number of steps to run through the RNN.
-num_t: 16
+num_t: 12
 
 # Change z for each t
 fast_z: 128
